@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using System.Diagnostics;
 
 namespace AutoUpconvert
@@ -12,7 +13,10 @@ namespace AutoUpconvert
         private static string outputDir;
         private static string frenchConverterBaseDir;
         private static string mtxpConverterBaseDir;
+
+        // Optional epsilon-specific stuff
         private static string epsilonDir;
+        private static string epsilonPatchName;
 
         private static string replaceMapNameIn;
         private static string replaceMapNameOut;
@@ -28,13 +32,17 @@ namespace AutoUpconvert
         {
             var config = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("settings.json", true, true).Build();
 
+            // Required
             monitorDir = config["MonitorDir"];
             frenchConverterPath = config["FrenchConverterPath"];
             mtxpConverterPath = config["MTXPConverterPath"];
             outputDir = config["OutputDir"];
+
+            // Optional
             replaceMapNameIn = config["ReplaceMapNameIn"];
             replaceMapNameOut = config["ReplaceMapNameOut"];
             epsilonDir = config["EpsilonDir"];
+            epsilonPatchName = config["EpsilonPatchName"];
 
             if (!File.Exists("listfile.csv"))
             {
@@ -289,7 +297,49 @@ namespace AutoUpconvert
                 File.Copy(outputFile, outputFilePath, true);
             }
 
-            // TODO: Update Epsilon patch JSONs where applicable
+            // Update Epsilon patch JSON if needed
+            if(!string.IsNullOrEmpty(epsilonDir) && !string.IsNullOrEmpty(epsilonPatchName))
+            {
+                var epsilonPatchListPath = Path.Combine(epsilonDir, "patches.json");
+                var epsilonPatchList = JsonConvert.DeserializeObject<List<EpsilonPatchList>>(File.ReadAllText(epsilonPatchListPath));
+
+                if(epsilonPatchList != null && epsilonPatchList.Any(x => x.Name == epsilonPatchName))
+                {
+                    var epsilonPatch = epsilonPatchList.First(x => x.Name == epsilonPatchName);
+                    var epsilonPatchManifestPath = Path.Combine(epsilonDir, "_retail_", "Patches", epsilonPatchName, "patch.json");
+                    var epsilonPatchManifest = JsonConvert.DeserializeObject<EpsilonPatchManifest>(File.ReadAllText(epsilonPatchManifestPath));
+
+                    // Update patch version
+                    epsilonPatchManifest.version = DateTime.Now.ToString("yyyyMMddHHmmss");
+
+                    // Update patch files
+                    epsilonPatchManifest.files = new List<EpsilonPatchManifestFile>(epsilonPatchManifest.files);
+                    foreach (var outputFile in Directory.GetFiles(outputDir, "*.*"))
+                    {
+                        var outputFileName = Path.GetFileName(outputFile);
+                        if (outputFileName == "patch.json")
+                            continue;
+
+                        if(!epsilonPatchManifest.files.Any(x => x.file == outputFileName))
+                        {
+                            var fileDataID = Listfile.FirstOrDefault(x => x.Value.EndsWith(outputFileName)).Key;
+                            if(fileDataID == 0)
+                            {
+                                Console.WriteLine("Could not find file data ID for " + outputFileName + ", skipping! Epsilon patch might be invalid/disabled now.");
+                                continue;
+                            }
+
+                            epsilonPatchManifest.files.Add(new EpsilonPatchManifestFile
+                            {
+                                id = fileDataID,
+                                file = outputFileName
+                            });
+                        }
+                    }
+
+                    File.WriteAllText(epsilonPatchManifestPath, JsonConvert.SerializeObject(epsilonPatchManifest, Formatting.Indented));
+                }
+            }
 
             isBusy = false;
             monitorDirWatcher.EnableRaisingEvents = true;
