@@ -30,6 +30,12 @@ namespace AutoUpconvert
 
         static void Main(string[] args)
         {
+            if(!File.Exists("settings.json"))
+            {
+                Console.WriteLine("settings.json not found in current directory. See README.md for example file. Exiting.");
+                return;
+            }
+
             var config = new ConfigurationBuilder().SetBasePath(Directory.GetCurrentDirectory()).AddJsonFile("settings.json", true, true).Build();
 
             // Required
