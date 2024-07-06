@@ -50,6 +50,19 @@ namespace AutoUpconvert
                     Listfile[uint.Parse(parts[0])] = parts[1];
                 }
                 Console.WriteLine("..done!");
+
+                if (File.Exists("custom-listfile.csv"))
+                {
+
+                   Console.Write("Loading custom listfile..");
+                    foreach (var line in File.ReadAllLines("custom-listfile.csv"))
+                    {
+                        var parts = line.Split(';');
+                        Console.WriteLine("\nAdded file from custom listfile: " + line);
+                        Listfile[uint.Parse(parts[0])] = parts[1];
+                    }
+                    Console.WriteLine("..done!");
+                }
             }
 
             if (!Directory.Exists(monitorDir))
