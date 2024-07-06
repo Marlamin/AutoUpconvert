@@ -87,7 +87,7 @@ namespace AutoUpconvert
 
             if (!File.Exists(frenchConverterPath))
             {
-                Console.WriteLine("SLFiledataADTConverter not found. Exiting.");
+                Console.WriteLine("SLFiledataADTConverter (french converter) not found. Exiting.");
                 return;
             }
 
@@ -189,17 +189,31 @@ namespace AutoUpconvert
             // Clear SLFiledataADTConverter dirs
             var frenchInputDir = Path.Combine(frenchConverterBaseDir, "INPUT");
 
-            foreach (var file in Directory.GetFiles(frenchInputDir))
+            if (!Directory.Exists(frenchInputDir))
             {
-                Console.WriteLine("Deleting " + file);
-                File.Delete(file);
+                Directory.CreateDirectory(frenchInputDir);
             }
-
-            var frenchOutputDir = Path.Combine(frenchConverterBaseDir, "OUTPUT");
-            foreach (var file in Directory.GetFiles(frenchOutputDir))
+            else
             {
-                Console.WriteLine("Deleting " + file);
-                File.Delete(file);
+                foreach (var file in Directory.GetFiles(frenchInputDir))
+                {
+                    Console.WriteLine("Deleting " + file);
+                    File.Delete(file);
+                }
+            }
+     
+            var frenchOutputDir = Path.Combine(frenchConverterBaseDir, "OUTPUT");
+            if (!Directory.Exists(frenchOutputDir))
+            {
+                Directory.CreateDirectory(frenchOutputDir);
+            }
+            else
+            {
+                foreach (var file in Directory.GetFiles(frenchOutputDir))
+                {
+                    Console.WriteLine("Deleting " + file);
+                    File.Delete(file);
+                }
             }
 
             //  Copy all files to SLFiledataADTConverter\input
@@ -212,6 +226,7 @@ namespace AutoUpconvert
                     outputFile = Path.Combine(frenchInputDir, Path.GetFileName(inputFile).Replace(replaceMapNameIn, replaceMapNameOut));
                 }
 
+                Console.WriteLine("Copying " + inputFile + " to " + outputFile);
                 File.Copy(inputFile, outputFile);
             }
 
@@ -249,17 +264,31 @@ namespace AutoUpconvert
 
             //  Clear 7x_TexAdt_MTXP_Adder dirs
             var mtxpInputDir = Path.Combine(mtxpConverterBaseDir, "Input");
-            foreach (var file in Directory.GetFiles(mtxpInputDir))
+            if (!Directory.Exists(mtxpInputDir))
             {
-                Console.WriteLine("Deleting " + file);
-                File.Delete(file);
+                Directory.CreateDirectory(mtxpInputDir);
+            }
+            else
+            {
+                foreach (var file in Directory.GetFiles(mtxpInputDir))
+                {
+                    Console.WriteLine("Deleting " + file);
+                    File.Delete(file);
+                }
             }
 
             var mtxpOutputDir = Path.Combine(mtxpConverterBaseDir, "Output");
-            foreach (var file in Directory.GetFiles(mtxpOutputDir))
+            if (!Directory.Exists(mtxpOutputDir))
             {
-                Console.WriteLine("Deleting " + file);
-                File.Delete(file);
+                Directory.CreateDirectory(mtxpOutputDir);
+            }
+            else
+            {
+                foreach (var file in Directory.GetFiles(mtxpOutputDir))
+                {
+                    Console.WriteLine("Deleting " + file);
+                    File.Delete(file);
+                }
             }
 
             //  Copy tex0 ADTs from output folder to 7x_TexAdt_MTXP_Adder\Input
@@ -340,6 +369,14 @@ namespace AutoUpconvert
                                 id = fileDataID,
                                 file = outputFileName
                             });
+                        }
+                    }
+
+                    foreach(var file in epsilonPatchManifest.files.ToList())
+                    {
+                        if(!File.Exists(Path.Combine(outputDir, file.file)))
+                        {
+                            epsilonPatchManifest.files.Remove(file);
                         }
                     }
 
