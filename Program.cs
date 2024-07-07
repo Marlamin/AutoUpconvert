@@ -8,11 +8,15 @@ namespace AutoUpconvert
     {
         private static bool isBusy = false;
         private static string monitorDir;
+        private static string outputDir;
+
         private static string frenchConverterPath;
         private static string mtxpConverterPath;
-        private static string outputDir;
+        private static string wdlGeneratorPath;
+
         private static string frenchConverterBaseDir;
         private static string mtxpConverterBaseDir;
+        private static string wdlGeneratorBaseDir;
 
         // Optional epsilon-specific stuff
         private static string epsilonDir;
@@ -25,12 +29,13 @@ namespace AutoUpconvert
 
         private static Process frenchConverter;
         private static Process mtxpConverter;
+        private static Process wdlGenerator;
 
         private static FileSystemWatcher monitorDirWatcher;
 
         static void Main(string[] args)
         {
-            if(!File.Exists("settings.json"))
+            if (!File.Exists("settings.json"))
             {
                 Console.WriteLine("settings.json not found in current directory. See README.md for example file. Exiting.");
                 return;
@@ -42,6 +47,12 @@ namespace AutoUpconvert
             monitorDir = config["MonitorDir"];
             frenchConverterPath = config["FrenchConverterPath"];
             mtxpConverterPath = config["MTXPConverterPath"];
+            wdlGeneratorPath = config["WDLGeneratorPath"];
+
+            frenchConverterBaseDir = Path.GetDirectoryName(frenchConverterPath);
+            mtxpConverterBaseDir = Path.GetDirectoryName(mtxpConverterPath);
+            wdlGeneratorBaseDir = Path.GetDirectoryName(wdlGeneratorPath);
+
             outputDir = config["OutputDir"];
 
             // Optional
@@ -68,7 +79,7 @@ namespace AutoUpconvert
                 if (File.Exists("custom-listfile.csv"))
                 {
 
-                   Console.Write("Loading custom listfile..");
+                    Console.Write("Loading custom listfile..");
                     foreach (var line in File.ReadAllLines("custom-listfile.csv"))
                     {
                         var parts = line.Split(';');
@@ -91,15 +102,17 @@ namespace AutoUpconvert
                 return;
             }
 
-            frenchConverterBaseDir = Path.GetDirectoryName(frenchConverterPath);
-
             if (!File.Exists(mtxpConverterPath))
             {
                 Console.WriteLine("7x_TexAdt_MTXP_Adder not found. Exiting.");
                 return;
             }
 
-            mtxpConverterBaseDir = Path.GetDirectoryName(mtxpConverterPath);
+            if (!File.Exists(wdlGeneratorPath))
+            {
+                Console.WriteLine("WDL generator not found. Exiting.");
+                return;
+            }
 
             if (!string.IsNullOrEmpty(epsilonDir) && !Directory.Exists(epsilonDir))
             {
@@ -186,6 +199,7 @@ namespace AutoUpconvert
 
             Console.WriteLine("Processing map update...");
 
+            #region frenchConverter
             // Clear SLFiledataADTConverter dirs
             var frenchInputDir = Path.Combine(frenchConverterBaseDir, "INPUT");
 
@@ -201,7 +215,7 @@ namespace AutoUpconvert
                     File.Delete(file);
                 }
             }
-     
+
             var frenchOutputDir = Path.Combine(frenchConverterBaseDir, "OUTPUT");
             if (!Directory.Exists(frenchOutputDir))
             {
@@ -261,7 +275,9 @@ namespace AutoUpconvert
                 Console.WriteLine("Copying " + outputFileName + " to " + outputFilePath);
                 File.Copy(outputFile, outputFilePath, true);
             }
+            #endregion
 
+            #region MTXP adder
             //  Clear 7x_TexAdt_MTXP_Adder dirs
             var mtxpInputDir = Path.Combine(mtxpConverterBaseDir, "Input");
             if (!Directory.Exists(mtxpInputDir))
@@ -331,16 +347,52 @@ namespace AutoUpconvert
                 Console.WriteLine("Copying " + outputFileName + " to " + outputFilePath);
                 File.Copy(outputFile, outputFilePath, true);
             }
+            #endregion
+
+            #region WDL generation
+            foreach (var file in Directory.GetFiles(Path.Combine(wdlGeneratorBaseDir, "output")))
+            {
+                Console.WriteLine("Deleting " + file);
+                File.Delete(file);
+            }
+
+            wdlGenerator = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = wdlGeneratorPath,
+                    ArgumentList = { outputDir },
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                    WorkingDirectory = wdlGeneratorBaseDir
+                }
+            };
+
+            wdlGenerator.OutputDataReceived += new DataReceivedEventHandler(OutputHandler);
+            wdlGenerator.ErrorDataReceived += new DataReceivedEventHandler(OutputHandler);
+
+            wdlGenerator.Start();
+            wdlGenerator.BeginOutputReadLine();
+            wdlGenerator.BeginErrorReadLine();
+            wdlGenerator.WaitForExit();
+
+            foreach (var file in Directory.GetFiles(Path.Combine(wdlGeneratorBaseDir, "output")))
+            {
+                var outputFileName = Path.GetFileName(file);
+                var outputFilePath = Path.Combine(outputDir, outputFileName);
+
+                Console.WriteLine("Copying " + outputFileName + " to " + outputFilePath);
+                File.Copy(file, outputFilePath, true);
+            }
+            #endregion
 
             // Update Epsilon patch JSON if needed
-            if(!string.IsNullOrEmpty(epsilonDir) && !string.IsNullOrEmpty(epsilonPatchName))
+            if (!string.IsNullOrEmpty(epsilonDir) && !string.IsNullOrEmpty(epsilonPatchName))
             {
-                var epsilonPatchListPath = Path.Combine(epsilonDir, "patches.json");
-                var epsilonPatchList = JsonConvert.DeserializeObject<List<EpsilonPatchList>>(File.ReadAllText(epsilonPatchListPath));
-
-                if(epsilonPatchList != null && epsilonPatchList.Any(x => x.Name == epsilonPatchName))
+                if (File.Exists(Path.Combine(epsilonDir, "_retail_", "Patches", epsilonPatchName, "patch.json")))
                 {
-                    var epsilonPatch = epsilonPatchList.First(x => x.Name == epsilonPatchName);
                     var epsilonPatchManifestPath = Path.Combine(epsilonDir, "_retail_", "Patches", epsilonPatchName, "patch.json");
                     var epsilonPatchManifest = JsonConvert.DeserializeObject<EpsilonPatchManifest>(File.ReadAllText(epsilonPatchManifestPath));
 
@@ -355,10 +407,10 @@ namespace AutoUpconvert
                         if (outputFileName == "patch.json")
                             continue;
 
-                        if(!epsilonPatchManifest.files.Any(x => x.file == outputFileName))
+                        if (!epsilonPatchManifest.files.Any(x => x.file == outputFileName))
                         {
                             var fileDataID = Listfile.FirstOrDefault(x => x.Value.EndsWith(outputFileName)).Key;
-                            if(fileDataID == 0)
+                            if (fileDataID == 0)
                             {
                                 Console.WriteLine("Could not find file data ID for " + outputFileName + ", skipping! Epsilon patch might be invalid/disabled now.");
                                 continue;
@@ -372,15 +424,20 @@ namespace AutoUpconvert
                         }
                     }
 
-                    foreach(var file in epsilonPatchManifest.files.ToList())
+                    foreach (var file in epsilonPatchManifest.files.ToList())
                     {
-                        if(!File.Exists(Path.Combine(outputDir, file.file)))
+                        if (!File.Exists(Path.Combine(outputDir, file.file)))
                         {
                             epsilonPatchManifest.files.Remove(file);
                         }
                     }
 
                     File.WriteAllText(epsilonPatchManifestPath, JsonConvert.SerializeObject(epsilonPatchManifest, Formatting.Indented));
+                }
+                else
+                {
+
+                    Console.WriteLine("Epsilon patch not found. Skipping patch update. Either create a patch by the name you set in settings or leave the name in settings empty to skip this step.");
                 }
             }
 
@@ -392,7 +449,8 @@ namespace AutoUpconvert
 
         static void OutputHandler(object sendingProcess, DataReceivedEventArgs outLine)
         {
-            Console.WriteLine(outLine.Data);
+            var process = sendingProcess as Process;
+            Console.WriteLine("[" + process.ProcessName + "] " + outLine.Data);
 
             if (outLine.Data != null && outLine.Data.Contains("Press any key to exit the program"))
             {
@@ -402,6 +460,11 @@ namespace AutoUpconvert
             if (outLine.Data != null && outLine.Data.Contains("All done!"))
             {
                 mtxpConverter.Kill();
+            }
+
+            if (outLine.Data != null && outLine.Data.Contains("Press enter to exit"))
+            {
+                wdlGenerator.Kill();
             }
         }
 
