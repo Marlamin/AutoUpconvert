@@ -8,6 +8,7 @@ Tool to automatically go from Noggit Red output (with modern features enabled) t
     "MonitorDir": "G:/Noggit/winterwonderland",
     "FrenchConverterPath": "G:/Tools/SLFiledataADTConverter/CommunityTools.MapConverter.exe",
     "MTXPConverterPath": "G:/Tools/7x_TexAdt_MTXP_Adder/7x_TexAdt_MTXP_Adder.exe",
+    "WDLGeneratorPath": "G:/WW_Work/WDLGenerator/WDLGenerator.exe",
     "OutputDir": "C:/E83/_retail_/Patches/WinterWonderland",
     "ReplaceMapNameIn": "winterwonderland",
     "ReplaceMapNameOut": "azeroth",
@@ -24,6 +25,9 @@ Path to `CommunityTools.MapConverter.exe`.
 
 ### MTXPConverterPath
 Path to [7x_TexAdt_MTXP_Adder.exe](https://github.com/Marlamin/7x_TexAdt_MTXP_Adder).
+
+### WDLGeneratorPath
+Path to [WDLGenerator.exe](https://github.com/Marlamin/WDLGenerator/releases).
 
 ### OutputDir
 Output directory to put converted files in.
